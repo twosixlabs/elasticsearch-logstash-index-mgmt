@@ -16,7 +16,7 @@ bash scripts for manages [Elasticsearch](http://www.elasticsearch.org) indices.
 They are specifically designed around the daily index pattern used in
 [Logstash](http://logstash.net).
 
-Support is integrated for uploading backups to S3 using s3cmd.
+Support is integrated for uploading backups to server using SCP.
 
 Each script has samples included, use '-h' or check the source. THe default
 index is 'logstash', but this option is configurable with '-g' for 'marvel' or
@@ -61,7 +61,7 @@ executing the restore script locally after download.
 Something like this might be helpful, assuming you placed the scripts in the
 /opt/es/ directory (formatted for an /etc/cron.d/ file):
 
-    00 7 * * * root /bin/bash /opt/es/elasticsearch-backup-index.sh -b "s3://es-bucket" -i "/opt/elasticsearch/data/elasticsearch/nodes/0/indices" -c "s3cmd put -c /path/to/.s3cfg"
+    00 7 * * * root /bin/bash /opt/es/elasticsearch-backup-index.sh -b "backupuser@es-backup" -i "/opt/elasticsearch/data/elasticsearch/nodes/0/indices"
     00 9 * * * root /bin/bash /opt/es/elasticsearch-remove-old-indices.sh -i 21
 
 ### `es-backup-index.sh`
