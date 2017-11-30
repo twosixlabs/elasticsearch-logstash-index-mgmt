@@ -2,14 +2,15 @@
 #
 # elasticsearch-backup-index.sh
 #
-# Push logstash index from yesterday to s3 with an accompanying restore script.
+# Push logstash index from yesterday to SCP with an accompanying restore script.
 #   http://logstash.net
 #   http://www.elasticsearch.org
-#   https://github.com/s3tools/s3cmd | http://s3tools.org/s3cmd
 #
 #   Inspiration:
 #     http://tech.superhappykittymeow.com/?p=296
+#     https://github.com/s3tools/s3cmd | http://s3tools.org/s3cmd
 #
+#     
 # Must run on an elasticsearch node, and expects to find the index on this node.
 
 usage()
@@ -19,20 +20,19 @@ cat << EOF
 elasticsearch-backup-index.sh
 
 Create a restorable backup of an elasticsearch index (assumes Logstash format
-indexes), and upload it to an existing S3 bucket. The default backs up an
+indexes), and upload it to a backup directory via SCP. The default backs up an
 index from yesterday. Note that this script itself does not restart
 elasticsearch - the restore script that is generated for each backup will
 restart elasticsearch after restoring an archived index.
 
-USAGE: ./elasticsearch-backup-index.sh -b S3_BUCKET -i INDEX_DIRECTORY [OPTIONS]
+USAGE: ./elasticsearch-backup-index.sh -b USER@SERVER:/PATH/TO/TARGET/ -i INDEX_DIRECTORY [OPTIONS]
 
 OPTIONS:
   -h    Show this message
-  -b    S3 path for backups (Required)
+  -b    SCP path for backups (Required)
   -g    Consistent index name (default: logstash)
   -i    Elasticsearch index directory (Required)
   -d    Backup a specific date (format: YYYY.mm.dd)
-  -c    Command for s3cmd (default: s3cmd put)
   -t    Temporary directory for archiving (default: /tmp)
   -p    Persist local backups, by default backups are not kept locally
   -s    Shards (default: 5)
@@ -43,20 +43,20 @@ OPTIONS:
 
 EXAMPLES:
 
-  ./elasticsearch-backup-index.sh -b "s3://someBucket" \
+  ./elasticsearch-backup-index.sh -b "user@server:/path/to/target/" \
   -i "/usr/local/elasticsearch/data/node/0/indices"
 
     This uses http://localhost:9200 to connect to elasticsearch and backs up
     the index from yesterday (based on system time, be careful with timezones)
 
-  ./elasticsearch-backup-index.sh -b "s3://bucket" -i "/mnt/es/data/node/0/indices" \
-  -d "2013.05.21" -c "/usr/local/bin/s3cmd put" -t "/mnt/es/backups" \
+  ./elasticsearch-backup-index.sh -b "user@server:/path/to/target/" -i "/mnt/es/data/node/0/indices" \
+  -d "2013.05.21" -t "/mnt/es/backups" \
   -g my_index -u "service es restart" -e "http://127.0.0.1:9200" -p
 
     Connect to elasticsearch using 127.0.0.1 instead of localhost, backup the
-    index "my_index" from 2013.05.21 instead of yesterday, use the s3cmd in /usr/local/bin
-    explicitly, store the archive and restore script in /mnt/es/backups (and
-    persist them) and use 'service es restart' to restart elastic search.
+    index "my_index" from 2013.05.21 instead of yesterday, store the archive 
+    and restore script in /mnt/es/backups (and persist them) and 
+    use 'service es restart' to restart elastic search.
 
 EOF
 }
@@ -68,7 +68,6 @@ if [ "$USER" != 'root' ] && [ "$LOGNAME" != 'root' ]; then
 fi
 
 # Defaults
-S3CMD="s3cmd put"
 TMP_DIR="/tmp"
 SHARDS=5
 REPLICAS=0
@@ -79,7 +78,7 @@ RESTART="service elasticsearch restart"
 # Validate shard/replica values
 RE_D="^[0-9]+$"
 
-while getopts ":b:i:d:c:g:t:p:s:r:e:n:u:h" flag
+while getopts ":b:i:d:g:t:p:s:r:e:n:u:h" flag
 do
   case "$flag" in
     h)
@@ -87,16 +86,13 @@ do
       exit 0
       ;;
     b)
-      S3_BASE=$OPTARG
+      SCP_BASE=$OPTARG
       ;;
     i)
       INDEX_DIR=$OPTARG
       ;;
     d)
       DATE=$OPTARG
-      ;;
-    c)
-      S3CMD=$OPTARG
       ;;
     g)
       INAME=$OPTARG
@@ -140,9 +136,9 @@ do
   esac
 done
 
-# We need an S3 base path
-if [ -z "$S3_BASE" ]; then
-  ERROR="${ERROR}Please provide an s3 bucket and path with -b.\n"
+# We need an SCP base path
+if [ -z "$SCP_BASE" ]; then
+  ERROR="${ERROR}Please provide an SCP user, server, and path with -b.\n"
 fi
 
 # We need an elasticsearch index directory
@@ -170,7 +166,7 @@ else
   INDEX=`date --date='yesterday' +"$INAME-%Y.%m.%d"`
   YEARMONTH=`date --date='yesterday' +"%Y-%m"`
 fi
-S3_TARGET="$S3_BASE/$YEARMONTH"
+SCP_TARGET="$SCP_BASE/$YEARMONTH"
 
 # Make sure there is an index
 if ! [ -d $INDEX_DIR/$INDEX ]; then
@@ -225,9 +221,9 @@ fi
 
 EOF
 
-# Put archive and restore script in s3.
-$S3CMD $TMP_DIR/$INDEX.tgz $S3_TARGET/$INDEX.tgz
-$S3CMD $TMP_DIR/$INDEX-restore.sh $S3_TARGET/$INDEX-restore.sh
+# SCP archive and restore script.
+scp $TMP_DIR/$INDEX.tgz $SCP_TARGET/$INDEX.tgz
+scp $TMP_DIR/$INDEX-restore.sh $SCP_TARGET/$INDEX-restore.sh
 
 # cleanup tmp files
 if [ -z $PERSIST ]; then

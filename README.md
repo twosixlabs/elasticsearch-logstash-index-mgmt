@@ -44,13 +44,11 @@ and closes indices older than the configured number of indices.
 
 Backup handles making a backup and a restore script for a given index. The
 default is yesterday's index, or you can pass a specific date for backup. You
-can optionally keep the backup locally, and/or push it to s3. If you want to get
-tricky, you can override the s3cmd command, and you could have this script push
-the backups to a storage server on your network (or whatever you want, really).
+can optionally keep the backup locally, and/or push it via scp.
 
 ### elasticsearch-restore-index.sh
 
-Restore handles retrieving a backup file and restore script (from S3), and then
+Restore handles retrieving a backup file and restore script (via SCP), and then
 executing the restore script locally after download.
 
 
@@ -61,7 +59,7 @@ executing the restore script locally after download.
 Something like this might be helpful, assuming you placed the scripts in the
 /opt/es/ directory (formatted for an /etc/cron.d/ file):
 
-    00 7 * * * root /bin/bash /opt/es/elasticsearch-backup-index.sh -b "backupuser@es-backup" -i "/opt/elasticsearch/data/elasticsearch/nodes/0/indices"
+    00 7 * * * root /bin/bash /opt/es/elasticsearch-backup-index.sh -b "backupuser@es-backup:/path/to/target/" -i "/opt/elasticsearch/data/elasticsearch/nodes/0/indices"
     00 9 * * * root /bin/bash /opt/es/elasticsearch-remove-old-indices.sh -i 21
 
 ### `es-backup-index.sh`

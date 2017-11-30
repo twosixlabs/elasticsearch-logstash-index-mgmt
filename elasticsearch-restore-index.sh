@@ -2,7 +2,7 @@
 #
 # elasticsearch-restore-index.sh
 #
-# Retrieve a specified logstash index from s3 and restore with an accompanying
+# Retrieve a specified logstash index via SCP and restore with an accompanying
 # restore script.
 #   http://logstash.net
 #   http://www.elasticsearch.org
@@ -21,25 +21,24 @@ cat << EOF
 elasticsearch-restore-index.sh
 
 
-USAGE: ./elasticsearch-restore-index.sh -b S3_BUCKET [OPTIONS]
+USAGE: ./elasticsearch-restore-index.sh -b USER@SERVER:/PATH/TO/TARGET/ [OPTIONS]
 
 OPTIONS:
   -h    Show this message
-  -b    S3 path for backups (Required)
+  -b    SCP path for backups (Required)
   -i    Elasticsearch index directory (Required)
   -d    Date to retrieve (Required, format: YYYY.mm.dd)
   -t    Temporary directory for download and extract (default: /tmp)
-  -c    Command for s3cmd (default: s3cmd get)
   -e    Elasticsearch URL (default: http://localhost:9200)
   -n    How nice tar must be (default: 19)
 
 EXAMPLES:
 
-  ./elasticsearch-restore-index.sh -b "s3://someBucket" -i /mnt/es/data/nodes/0/indices \
+  ./elasticsearch-restore-index.sh -b "user@server:/path/to/target/" -i /mnt/es/data/nodes/0/indices \
   -d "2013.05.01"
 
-    Get the backup and restore script for the 2013.05.01 index from this s3
-    bucket and restore the index to the provided elasticsearch index directory.
+    Get the backup and restore script for the 2013.05.01 index from this 
+    server and restore the index to the provided elasticsearch index directory.
 
 EOF
 }
@@ -51,12 +50,11 @@ if [ "$USER" != 'root' ] && [ "$LOGNAME" != 'root' ]; then
 fi
 
 # Defaults
-S3CMD="s3cmd get"
 ELASTICSEARCH="http://localhost:9200"
 NICE=19
 TMP_DIR="/tmp"
 
-while getopts ":b:i:t:d:c:e:n:h" flag
+while getopts ":b:i:t:d:e:n:h" flag
 do
   case "$flag" in
     h)
@@ -64,7 +62,7 @@ do
       exit 0
       ;;
     b)
-      S3_BASE=$OPTARG
+      SCP_BASE=$OPTARG
       ;;
     i)
       INDEX_DIR=$OPTARG
@@ -74,9 +72,6 @@ do
       ;;
     d)
       DATE=$OPTARG
-      ;;
-    c)
-      S3CMD=$OPTARG
       ;;
     e)
       ELASTICSEARCH=$OPTARG
@@ -94,9 +89,9 @@ do
   esac
 done
 
-# We need an S3 base path
-if [ -z "$S3_BASE" ]; then
-  ERROR="${ERROR}Please provide an s3 bucket and path with -b.\n"
+# We need an SCP base path
+if [ -z "$SCP_BASE" ]; then
+  ERROR="${ERROR}Please provide an scp user, server, and path with -b.\n"
 fi
 
 # We need an elasticsearch index directory
@@ -120,11 +115,11 @@ fi
 INDEX="logstash-$DATE"
 YEARMONTH=${DATE//\./-}
 YEARMONTH=${YEARMONTH:0:7}
-S3_TARGET="$S3_BASE/$YEARMONTH"
+SCP_TARGET="$SCP_BASE/$YEARMONTH"
 
 # Get archive and execute the restore script. TODO check file existence first
-$S3CMD $S3_TARGET/$INDEX.tgz $TMP_DIR/$INDEX.tgz
-$S3CMD $S3_TARGET/$INDEX-restore.sh $TMP_DIR/$INDEX-restore.sh
+scp $SCP_TARGET/$INDEX.tgz $TMP_DIR/$INDEX.tgz
+scp $SCP_TARGET/$INDEX-restore.sh $TMP_DIR/$INDEX-restore.sh
 
 if [ -f $TMP_DIR/$INDEX-restore.sh ]; then
   chmod 750 $TMP_DIR/$INDEX-restore.sh
